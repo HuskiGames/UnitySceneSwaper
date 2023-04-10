@@ -5,7 +5,9 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEditor.SceneManagement;
+using UnityEngine.Events;
 using UnityEditor;
+using System.Threading.Tasks;
 
 public class SceneChanger : EditorWindow
 {
@@ -17,18 +19,39 @@ public class SceneChanger : EditorWindow
     List<Scene> sceneArray;
     public string[] Paths;
     bool Add;
+    UnityEvent m_MyEvent;
+    bool ContainsInScene = true;
+    string selpath;
+    Scene selscene;
+    bool Saving;
+    bool ExitSaveButon = true;
 
 
     [System.Obsolete]
     private void OnGUI()
     {
-        if (Application.isPlaying)
+        if (Application.isPlaying || Saving)
         {
-            EditorGUILayout.LabelField("Exit play mode to use window");
+            if (Saving)
+            {
+                EditorGUILayout.LabelField("Saving");
+                ForceExitSave();
+                if (ExitSaveButon)
+                {
+                    if (GUILayout.Button("Force Exit Save"))
+                    {
+                        Saving = false;
+                    }
+                }
+            }
+            else
+            {
+                EditorGUILayout.LabelField("Exit play mode to use window");
+            }
         }
         else
         {
-
+            ExitSaveButon = false;
             ScriptableObject target = this;
             SerializedObject so = new SerializedObject(target);
             SerializedProperty stringsProperty = so.FindProperty("Paths");
@@ -60,7 +83,7 @@ public class SceneChanger : EditorWindow
                     }
 
 
-                    bool ContainsInScene = true;
+                    ContainsInScene = true;
                     foreach (Scene scene in scenes)
                     {
                         if (scene.name == sceneArray[ii].name)
@@ -79,16 +102,49 @@ public class SceneChanger : EditorWindow
                         {
                             if (EditorSceneManager.sceneCount > 1)
                             {
-                                EditorSceneManager.CloseScene(sceneArray[ii], true);
+                                Saving = true;
+                                EditorSceneManager.SaveScenes(scenes);
+                                selscene = sceneArray[ii];
+                                waitClose();
                             }
                         }
                     }
                     else
                     {
-                        sceneArray[ii] = EditorSceneManager.OpenScene(Paths[ii]);
+                        Saving = true;
+                        EditorSceneManager.SaveScenes(scenes);
+                        selpath = Paths[ii];
+                        waitSave();
                     }
                 }
             }
         }
+    }
+
+    async void ForceExitSave()
+    {
+        await Task.Delay(200);
+        if (Saving == true)
+        {
+            ExitSaveButon = true;
+        }
+    }
+
+    async void waitSave()
+    {
+        await Task.Delay(200);
+        EditorSceneManager.OpenScene(selpath);
+        Saving = false;
+    }
+    async void waitClose()
+    {
+        await Task.Delay(200);
+        closeScene(selscene);
+        Saving = false;
+    }
+
+    void closeScene(Scene scene)
+    {
+        EditorSceneManager.CloseScene(scene, true);
     }
 }
